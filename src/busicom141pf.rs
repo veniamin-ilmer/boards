@@ -1,15 +1,12 @@
-use chips::i4001;
-use chips::i4002;
-use chips::i4003;
-use chips::i4004;
+use chips::{rom,ram,shifter,cpu,cpu::i4004};
 use log::warn;
 use arbitrary_int::{u2,u4};
 
 pub struct Board {
-  pub i4001s: [i4001::I4001; 5],
-  pub i4002s: [i4002::I4002; 2],
-  pub i4003s: [i4003::I4003; 3],
-  pub i4004: i4004::I4004, 
+  pub i4001s: [rom::I4001; 5],
+  pub i4002s: [ram::I4002; 2],
+  pub i4003s: [shifter::I4003; 3],
+  pub i4004: cpu::I4004, 
   advance_paper: bool,
   hammering: bool,
 }
@@ -103,15 +100,15 @@ impl Board {
 
     Self {
       i4001s: [
-                i4001::I4001::new(binary0.try_into().unwrap()),
-                i4001::I4001::new(binary1.try_into().unwrap()),
-                i4001::I4001::new(binary2.try_into().unwrap()),
-                i4001::I4001::new(binary3.try_into().unwrap()),
-                i4001::I4001::new(binary4.try_into().unwrap())
+                rom::I4001::new(binary0.try_into().unwrap()),
+                rom::I4001::new(binary1.try_into().unwrap()),
+                rom::I4001::new(binary2.try_into().unwrap()),
+                rom::I4001::new(binary3.try_into().unwrap()),
+                rom::I4001::new(binary4.try_into().unwrap())
               ],
-      i4002s: [i4002::I4002::new(), i4002::I4002::new()],
-      i4003s: [i4003::I4003::new(), i4003::I4003::new(), i4003::I4003::new()],
-      i4004: i4004::I4004::new(),
+      i4002s: [ram::I4002::new(), ram::I4002::new()],
+      i4003s: [shifter::I4003::new(), shifter::I4003::new(), shifter::I4003::new()],
+      i4004: cpu::I4004::new(),
       advance_paper: false,
       hammering: false,
     }
@@ -185,15 +182,15 @@ fn convert_ram_index(command_control: u4, designated_index: i4004::DesignatedInd
 }
 
 struct I4004IO<'a> {
-  i4001s: &'a mut [i4001::I4001; 5],
-  i4002s: &'a mut [i4002::I4002; 2],
+  i4001s: &'a mut [rom::I4001; 5],
+  i4002s: &'a mut [ram::I4002; 2],
 }
 impl i4004::IO for I4004IO<'_> {
   fn read_rom_byte(&self, address: i4004::ROMAddress) -> u8 {
     let high_addr = address.chip_index().value() as usize;
     let low_addr = address.offset();
     let i4001 = &self.i4001s[high_addr % self.i4001s.len()];  //Wrap around
-    i4001.read_byte(low_addr)
+    i4001.read(low_addr)
   }
   
   fn read_rom_ports(&self, designated_index: i4004::DesignatedIndex) -> u4 {
