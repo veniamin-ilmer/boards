@@ -1,14 +1,14 @@
 //! Fairchild Channel F, initially named as the Fairchild Video Entertainment System (VES)
 //! Released in November 1976
 
-use log::{info, debug, warn};
+use log::{info, warn};
 use chips::{rom,ram,cpu};
 use arbitrary_int::u6;
 
 pub struct Board {
   pub cpu: cpu::F3850,
   pub roms: Vec<rom::F3851>,
-  pub ram: ram::F3852,
+  pub rams: Vec<ram::F3852>,
   pub vram: [ram::MK4027; 4],
   pub ports: [u8; 256], //external port values
 }
@@ -34,7 +34,10 @@ impl Board {
     Self {
       cpu: cpu::F3850::new(),
       roms,
-      ram: ram::F3852::new(u6::new(0xA), u6::new(0xB)),
+      rams: vec![
+        ram::F3852::new(u6::new(0xA), u6::new(0xB)),
+        ram::F3852::new(u6::new(0xB), u6::new(0xC)),
+      ],
       vram: [
         ram::MK4027::new(),
         ram::MK4027::new(),
@@ -56,7 +59,7 @@ impl Board {
     
     {
       let mut io = F3850IO {
-        ram: &mut self.ram,
+        rams: &mut self.rams,
         roms: &mut self.roms,
         ports: &mut self.ports,
       };
@@ -74,14 +77,16 @@ impl Board {
       for rom in self.roms.iter() {
         ret |= rom.read_port(port);
       }
-      ret |= self.ram.read_port(port);
+      for ram in self.rams.iter() {
+        ret |= ram.read_port(port);
+      }
     }
     ret | self.ports[port as usize]
   }
 }
 
 struct F3850IO<'a> {
-  ram: &'a mut ram::F3852,
+  rams: &'a mut Vec<ram::F3852>,
   roms: &'a mut Vec<rom::F3851>,
   ports: &'a mut [u8; 256],
 }
@@ -104,7 +109,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       rom.write_port(port, value);
     }
-    self.ram.write_port(port, value);
+    for ram in &mut *self.rams {
+      ram.write_port(port, value);
+    }
   }
   /// Read from IO port. Does NOT include external ports, because it doesn't include CPU ports.
   fn input(&self, port: u8) -> u8 {
@@ -113,7 +120,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in self.roms.iter() {
       ret |= rom.read_port(port);
     }
-    ret |= self.ram.read_port(port);
+    for ram in self.rams.iter() {
+      ret |= ram.read_port(port);
+    }
     ret
   }
   
@@ -127,7 +136,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       ret |= rom.next_code();  //We must run it for all ROMS so they update their pc0.
     }
-    ret |= self.ram.next_code();
+    for ram in &mut *self.rams {
+      ret |= ram.next_code();  //We must run it for all RAMS so they update their pc0.
+    }
     ret
   }
   /// Read code byte without updating read pointer
@@ -136,7 +147,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in self.roms.iter() {
       ret |= rom.peak_code();
     }
-    ret |= self.ram.peak_code();
+    for ram in self.rams.iter() {
+      ret |= ram.peak_code();
+    }
     ret
   }
   
@@ -146,7 +159,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       ret |= rom.next_data();  //We must run it for all ROMS so they update their dc0.
     }
-    ret |= self.ram.next_data();
+    for ram in &mut *self.rams {
+      ret |= ram.next_data();  //We must run it for all RAMS so they update their dc0.
+    }
     ret
   }
   /// Write next data byte
@@ -155,11 +170,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       rom.next_data();  //We must run it for all ROMS so they update their dc0.
     }
-//    if self.ram.dc0 == 0x2851 {
-//      self.ram.next_data();
-//    } else {
-      self.ram.write_data(data);
-//    }
+    for ram in &mut *self.rams {
+      ram.write_data(data);
+    }
   }
 
   /// Jump to direct address. push_pc will back up the current position, so you can return to it later. (Call vs Jump)
@@ -168,21 +181,27 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       rom.jump(addr, push_pc);
     }
-    self.ram.jump(addr, push_pc);
+    for ram in &mut *self.rams {
+      ram.jump(addr, push_pc);
+    }
   }
   /// Jump to relative address.
   fn jump_relative(&mut self, relative_addr: i8) {
     for rom in &mut *self.roms {
       rom.jump_relative(relative_addr);
     }
-    self.ram.jump_relative(relative_addr);
+    for ram in &mut *self.rams {
+      ram.jump_relative(relative_addr);
+    }
   }
   /// Return from address.
   fn ret_pc(&mut self) {
     for rom in &mut *self.roms {
       rom.ret_pc();
     }
-    self.ram.ret_pc();
+    for ram in &mut *self.rams {
+      ram.ret_pc();
+    }
   }
   
   /// Used by ADC instruction
@@ -190,7 +209,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       rom.add_dc0(a);
     }
-    self.ram.add_dc0(a);
+    for ram in &mut *self.rams {
+      ram.add_dc0(a);
+    }
   }
   /// Get dc0 pointer, returns upper, lower
   fn get_dc0(&self) -> (u8, u8) {
@@ -198,7 +219,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in self.roms.iter() {
       ret |= rom.dc0;
     }
-    ret |= self.ram.dc0;
+    for ram in self.rams.iter() {
+      ret |= ram.dc0;
+    }
     u16_to_u8(ret)
   }
   /// Set dc0 pointer
@@ -207,14 +230,18 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       rom.dc0 = dc0;
     }
-    self.ram.dc0 = dc0;
+    for ram in &mut *self.rams {
+      ram.dc0 = dc0;
+    }
   }
   /// Swap DC pointers
   fn swap_dc(&mut self) {
     for rom in &mut *self.roms {
       rom.swap_dc();
     }
-    self.ram.swap_dc();
+    for ram in &mut *self.rams {
+      ram.swap_dc();
+    }
   }
   
   /// Get pc1 pointer, returns upper, lower
@@ -223,7 +250,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in self.roms.iter() {
       ret |= rom.pc1;
     }
-    ret |= self.ram.pc1;
+    for ram in self.rams.iter() {
+      ret |= ram.pc1;
+    }
     u16_to_u8(ret)
   }
   /// Set pc1 pointer
@@ -232,7 +261,9 @@ impl cpu::f3850::IO for F3850IO<'_> {
     for rom in &mut *self.roms {
       rom.pc1 = pc1;
     }
-    self.ram.pc1 = pc1;
+    for ram in &mut *self.rams {
+      ram.pc1 = pc1;
+    }
   }
   
 }
