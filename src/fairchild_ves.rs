@@ -35,7 +35,7 @@ impl Board {
       cpu: cpu::F3850::new(),
       roms,
       rams: vec![
-        ram::F3852::new(u6::new(0xA), u6::new(0xB)),
+        ram::F3852::new(u6::new(0xA), u6::new(0b1001)), //Port 0x24 and 0x25 set for maze (videocart 10)
         ram::F3852::new(u6::new(0xB), u6::new(0xC)),
       ],
       vram: [
@@ -111,6 +111,33 @@ impl cpu::f3850::IO for F3850IO<'_> {
     }
     for ram in &mut *self.rams {
       ram.write_port(port, value);
+    }
+    
+    //Hardwired for videocart 10 (maze)
+    if port == 0x24 {
+      let port24 = value as usize;
+      let addr1 = (port24 & 0b00000010) << 2  //1 maps to 3
+                | (port24 & 0b00000100);      //2 maps to 2
+
+      let port25 = self.input(0x25) as usize;
+      let addr2 = (port25 & 0b00000001)       //0 maps to 0
+                | (port25 & 0b00000010) << 3  //1 maps to 4
+                | (port25 & 0b00000100) << 3  //2 maps to 5
+                | (port25 & 0b00001000) << 3  //3 maps to 6
+                | (port25 & 0b00010000) >> 3  //4 maps to 1
+                | (port25 & 0b00100000) << 2  //5 maps to 7
+                | (port25 & 0b01000000) << 2  //6 maps to 8
+                | (port25 & 0b10000000) << 2; //7 maps to 9
+
+      let hardwired_address = addr1 | addr2;
+      
+      let is_write = (port24 & 0b1) != 0;
+      if is_write {
+        self.rams[0].ram.write_bit(hardwired_address, (port24 & 0b1000) != 0);
+      } else {
+        let data_bit = (self.rams[0].ram.read_bit(hardwired_address) as u8) << 7;
+        self.rams[0].write_port(0x24, (value & 0b01111111) | data_bit);
+      }
     }
   }
   /// Read from IO port. Does NOT include external ports, because it doesn't include CPU ports.
