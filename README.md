@@ -7,3 +7,4 @@ It handles non-GUI functionality, involving initialization of all chips used on 
 ## Supported Boards
 
 * Busicom 141-PF
+* Fairchild Channel F (VES)
