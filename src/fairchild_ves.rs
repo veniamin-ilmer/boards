@@ -114,6 +114,7 @@ impl cpu::f3850::IO for F3850IO<'_> {
     }
     
     //Hardwired for videocart 10 (maze)
+    //Source - https://www.reddit.com/r/ChannelF/comments/91cpj8/reading_and_writing_from_ports_36_37/
     if port == 0x24 {
       let port24 = value as usize;
       let addr1 = (port24 & 0b00000010) << 2  //1 maps to 3
@@ -133,8 +134,10 @@ impl cpu::f3850::IO for F3850IO<'_> {
       
       let is_write = (port24 & 0b1) != 0;
       if is_write {
+        //Write port bit to ram.
         self.rams[0].ram.write_bit(hardwired_address, (port24 & 0b1000) != 0);
       } else {
+        //Read. Update the port to contain the ram bit, so it can be read next time.
         let data_bit = (self.rams[0].ram.read_bit(hardwired_address) as u8) << 7;
         self.rams[0].write_port(0x24, (value & 0b01111111) | data_bit);
       }
