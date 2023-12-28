@@ -127,17 +127,17 @@ impl Board {
     //ROM 0 has shifter data and clocks
     let ports = self.i4001s[0].read_ports().value();
     //Shifter 0 = Keyboard
-    self.i4003s[0].read_write_serial(ports & 0b1 == 0, ports & 0b10 == 0);
+    self.i4003s[0].read_write_serial(shifter::Direction::Left, ports & 0b10 == 0, ports & 0b1 == 0);
     
     //Shifter 1 = Printer
-    let out = self.i4003s[1].read_write_serial(ports & 0b100 == 0, ports & 0b10 == 0b10);
+    let out = self.i4003s[1].read_write_serial(shifter::Direction::Left, ports & 0b10 == 0b10, ports & 0b100 == 0);
     //Shifter 2 = Cascade shifter 1, for Printer
-    self.i4003s[2].read_write_serial(ports & 0b100 == 0, out);
+    self.i4003s[2].read_write_serial(shifter::Direction::Left, out, ports & 0b100 == 0);
   }
   
-  pub fn printer_shift_bits(&self) -> usize {
-    let shift1 = self.i4003s[1].read_parallel();
-    let shift2 = self.i4003s[2].read_parallel();
+  pub fn printer_shift_bits(&self) -> u32 {
+    let shift1 = self.i4003s[1].read_parallel() as u32;
+    let shift2 = self.i4003s[2].read_parallel() as u32;
     shift1 | (shift2 << 10)
   }
   

@@ -10,3 +10,4 @@ chips = { path = "../chips" }
 log = "*" #Same version as chips
 arbitrary-int = "*" #Same version as chips
 simple_logger = "4.2.0"
+wasm-log = "0.3"
