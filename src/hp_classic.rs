@@ -36,7 +36,7 @@ impl Board {
     }
   }
 
-  pub fn run_cycle(&mut self, keyboard_code: Option<u6>) {
+  pub fn run_cycle(&mut self) {
     let mut opcode = u10::new(0);
     let mut word_select_data = u14::new(0);
     for rom in &mut self.roms {
@@ -54,7 +54,7 @@ impl Board {
       }
     }
     
-    word_select_data |= self.cnt.run_cycle(opcode, self.anr.next_carry, keyboard_code);
+    word_select_data |= self.cnt.run_cycle(opcode, self.anr.next_carry);
     let ram_data = self.ram.run_cycle(opcode, self.anr.c);
     self.anr.run_cycle(opcode, word_select_data, ram_data);
     self.cnt.print();
