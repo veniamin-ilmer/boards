@@ -2,7 +2,6 @@
 //! Each clock cycle ends up taking 280 microseconds. (3.671 kHz)
 
 const ROM_CHIP_LEN: usize = 320;  /// 256 * 10 bits = 2560 bits of ROM data. 2560 / 8 = 320 bytes
-use log::trace;
 use chips::{rom,cpu,ram};
 use arbitrary_int::{
   u3,   //ROM #
@@ -44,20 +43,19 @@ impl<const EXTRA_REGS: usize> Board<EXTRA_REGS> {
       word_select_data |= word_select_data_rom;
     }
     
-    //ROM Select decoder. (Should this be in a separate chip??)
-    if opcode.value() & 0b1111111 == 0b0010000 {
-      let rom_num = (opcode.value() >> 7) as u8;
-      trace!("SELECT ROM {}", rom_num);
-      for rom in &mut self.roms {
-        rom.select_rom(u3::new(rom_num));
-      }
+    //ROM SELECT Decoding done on all ROMS.
+    for rom in &mut self.roms {
+      rom.decode(opcode);
     }
     
+    //Run C&T and A&R
     word_select_data |= self.cnt.run_cycle(opcode, self.anr.next_carry);
     let ram_data = self.ram.run_cycle(opcode, self.anr.c);
     self.anr.run_cycle(opcode, word_select_data, ram_data);
+    
     self.cnt.print();
     self.anr.print();
+    
   }
 
 }
