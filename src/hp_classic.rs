@@ -6,19 +6,18 @@ use log::trace;
 use chips::{rom,cpu,ram};
 use arbitrary_int::{
   u3,   //ROM #
-  u6,   //Key code
   u10,  //ROM opcode
   u14,  //Word Select
 };
 
-pub struct Board {
+pub struct Board<const EXTRA_REGS: usize> {
   pub anr: cpu::HP_AnR,
   pub cnt: cpu::HP_CnT,
   pub roms: Vec<rom::HP_ROM>,
-  pub ram: ram::HP_RAM,
+  pub ram: ram::HP_RAM<EXTRA_REGS>,
 }
 
-impl Board {
+impl<const EXTRA_REGS: usize> Board<EXTRA_REGS> {
   pub fn new(packed_rom_data: Vec<u8>) -> Self {
     let mut roms = vec![];
     let mut rom_num = u3::new(0);
