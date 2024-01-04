@@ -9,6 +9,9 @@ use arbitrary_int::{
   u14,  //Word Select
 };
 
+use chips::shifter;
+type WordSelect = shifter::Shifter16<14>;
+
 pub struct Board<const EXTRA_REGS: usize> {
   pub anr: cpu::HP_AnR,
   pub cnt: cpu::HP_CnT,
@@ -36,11 +39,11 @@ impl<const EXTRA_REGS: usize> Board<EXTRA_REGS> {
 
   pub fn run_cycle(&mut self) {
     let mut opcode = u10::new(0);
-    let mut word_select_data = u14::new(0);
+    let mut word_select_data = 0;
     for rom in &mut self.roms {
       let (opcode_rom, word_select_data_rom) = rom.read(self.cnt.next_address);
       opcode |= opcode_rom;
-      word_select_data |= word_select_data_rom;
+      word_select_data |= word_select_data_rom.read_parallel();
     }
     
     //ROM SELECT Decoding done on all ROMS.
@@ -49,9 +52,9 @@ impl<const EXTRA_REGS: usize> Board<EXTRA_REGS> {
     }
     
     //Run C&T and A&R
-    word_select_data |= self.cnt.run_cycle(opcode, self.anr.next_carry);
+    word_select_data |= self.cnt.run_cycle(opcode, self.anr.next_carry).read_parallel();
     let ram_data = self.ram.run_cycle(opcode, self.anr.c);
-    self.anr.run_cycle(opcode, word_select_data, ram_data);
+    self.anr.run_cycle(opcode, WordSelect::new(word_select_data), ram_data);
     
     self.cnt.print();
     self.anr.print();
